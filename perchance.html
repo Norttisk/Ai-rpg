@@ -4,7 +4,131 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Text-Based RPG</title>
-        <link rel="stylesheet" href="style.css" />
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family: Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                height: 100vh;
+                background-color: #1a1a1a;
+                color: #ffffff;
+                text-align: start;
+            }
+
+            .game-container {
+                display: flex;
+                flex-direction: column;
+                padding: 1rem;
+            }
+
+            header {
+                text-align: center;
+                margin-bottom: 1rem;
+            }
+
+            main {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .game-text {
+                background-color: #2a2a2a;
+                border: 1px solid #2a2a2a;
+                border-radius: 5px;
+                padding: 1rem;
+                margin-bottom: 1rem;
+                min-height: 200px;
+                overflow-y: auto;
+                text-align: start;
+            }
+
+            button:hover {
+                opacity: 0.7;
+            }
+
+            .user-input {
+                flex-grow: 1;
+                padding: 0.5rem;
+                border: 1px solid #2a2a2a;
+                border-radius: 5px 0 0 5px;
+                outline: none;
+                background-color: #232020;
+                color: #fff;
+            }
+
+            #customActionBtn {
+                padding: 0.5rem 1rem;
+                background-color: #2a2a2a;
+                color: #fff;
+                border: none;
+                border-radius: 0 5px 5px 0;
+                cursor: pointer;
+            }
+
+            .choice {
+                margin-right: 5px;
+                margin-top: 10px;
+            }
+
+            footer {
+                display: flex;
+                gap: 20px;
+            }
+
+            footer button {
+                padding: 0.5rem 1rem;
+                background-color: #2a2a2a;
+                color: #fff;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                margin-bottom: 20px;
+            }
+
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 1;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.4);
+            }
+
+            .modal-content {
+                background-color: #2a2a2a;
+                margin: 10% auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 80%;
+                max-width: 500px;
+                border-radius: 5px;
+            }
+
+            .close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+            }
+
+            .close:hover,
+            .close:focus {
+                color: #fff;
+                text-decoration: none;
+                cursor: pointer;
+            }
+        </style>
     </head>
     <body>
         <div class="game-container">
@@ -13,19 +137,23 @@
             </header>
             <main>
                 <p id="outputEl" class="game-text">Welcome.</p>
-                <div class="action-item">
+                <div
+                    class="action-item"
+                    style="display: flex; margin-bottom: 20px; gap: 20px"
+                >
                     <input
                         class="user-input"
                         id="customActionInputEl"
                         placeholder="Nhập tên của bạn..."
                     />
-                    <button id="customActionBtn">Bắt đầu</button>
+                    <button id="customActionBtn">Continue</button>
                 </div>
             </main>
             <footer>
-                <button id="player-info-btn">Thông tin nhân vật</button>
-                <button id="inventory-btn">Hành trang</button>
-                <button id="storyLogBtn">Xem nhật ký</button>
+                <button id="player-info-btn">Profile</button>
+                <button id="inventory-btn">Inventory</button>
+                <button id="storyLogBtn">History Log</button>
+                <button id="eventContext">Event Context</button>
             </footer>
             <div class="action-item">
                 <input type="file" id="file-input" accept=".json" />
@@ -44,12 +172,246 @@
             ></textarea>
         </div>
         <div id="modal" class="modal" style="display: none">
-            <div class="modal-content">
+            <div
+                class="modal-content"
+                style="max-height: 300px; overflow-y: auto; min-width: 500px"
+            >
                 <span class="close">&times;</span>
                 <h2 id="modal-title"></h2>
                 <div id="modal-body"></div>
             </div>
         </div>
-        <script src="script.js"></script>
+        <script>
+            const outputDiv = document.getElementById("outputEl");
+            const customActionInput = document.getElementById(
+                "customActionInputEl"
+            );
+            const customActionBtn = document.getElementById("customActionBtn");
+            const fileInput = document.getElementById("file-input");
+            const playerInfoBtn = document.getElementById("player-info-btn");
+            const inventoryBtn = document.getElementById("inventory-btn");
+            const storyLogBtn = document.getElementById("storyLogBtn");
+            const storyLogEl = document.getElementById("storyLogEl");
+            const modal = document.getElementById("modal");
+            const modalTitle = document.getElementById("modal-title");
+            const modalBody = document.getElementById("modal-body");
+            const closeBtn = document.getElementsByClassName("close")[0];
+            const eventContextBtn = document.getElementById("eventContext");
+
+            let playerName;
+            let playerAttributes;
+            let events = [
+                {
+                    keyword: "forest|jungle|woods",
+                    condition: "player.level >= 2",
+                    content:
+                        "Bạn đang đi qua một khu rừng rậm rạp. Ánh sáng xuyên qua tán lá, và những tiếng động lạ vang lên từ các bụi cây xung quanh.",
+                    available_choices: [
+                        {
+                            choice: "Đi tiếp bất chấp nguy hiểm",
+                            success_rate: 0.7,
+                            outcome:
+                                "Bạn vượt qua khu rừng nhưng bị vài vết xước do gai nhọn.",
+                        },
+                        {
+                            choice: "Tìm một con đường khác an toàn hơn",
+                            success_rate: 1.0,
+                            outcome:
+                                "Bạn tìm thấy một con đường mòn dẫn ra khỏi khu rừng mà không gặp nguy hiểm.",
+                        },
+                        {
+                            choice: "Dừng lại để điều tra tiếng động",
+                            success_rate: 0.5,
+                            outcome:
+                                "Bạn phát hiện ra một nhóm sinh vật kỳ lạ. Chúng có vẻ thân thiện nhưng có thể nguy hiểm.",
+                        },
+                    ],
+                },
+            ];
+            let inventory = ["Sword", "Health Potion"];
+
+            const startGame = () => {
+                playerName = customActionInputEl.value;
+                playerAttributes = {
+                    level: 2,
+                    health: 100,
+                    gold: 50,
+                };
+                outputDiv.innerHTML = `Chào mừng ${playerName}, bạn đã sẵn sàng!`;
+                customActionInput.value = "";
+            };
+
+            const loadEvents = (file) => {
+                const reader = new FileReader();
+
+                reader.onload = (event) => {
+                    try {
+                        const jsonData = JSON.parse(event.target.result); // Chuyển đổi nội dung tệp JSON thành đối tượng
+                        if (Array.isArray(jsonData.events)) {
+                            events = [...events, ...jsonData.events]; // Thêm các sự kiện từ JSON vào biến `events`
+                            outputDiv.innerHTML += `<p>Dữ liệu sự kiện đã được tải thành công.</p>`;
+                        } else {
+                            outputDiv.innerHTML += `<p>Tệp JSON không hợp lệ hoặc thiếu thuộc tính 'events'.</p>`;
+                        }
+                    } catch (error) {
+                        outputDiv.innerHTML += `<p>Không thể đọc tệp JSON. Lỗi: ${error.message}</p>`;
+                    }
+                };
+
+                if (file) {
+                    reader.readAsText(file); // Đọc nội dung tệp JSON
+                } else {
+                    outputDiv.innerHTML += `<p>Không có tệp nào được chọn.</p>`;
+                }
+            };
+
+            fileInput.addEventListener("change", (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    loadEvents(file);
+                }
+            });
+
+            const processInput = (input) => {
+                const command = input.toLowerCase();
+                const matchedEvent = events.find((event) =>
+                    event.keyword
+                        .split("|")
+                        .some((keyword) => command.includes(keyword))
+                );
+
+                // Kiểm tra điều kiện của sự kiện nếu tìm thấy
+                if (matchedEvent) {
+                    const conditionMet = eval(
+                        matchedEvent.condition.replace(
+                            "player.",
+                            "playerAttributes."
+                        )
+                    );
+
+                    if (conditionMet) {
+                        // Hiển thị nội dung sự kiện
+                        outputDiv.innerHTML += `<p>${matchedEvent.content}</p>`;
+
+                        // Hiển thị các lựa chọn
+                        matchedEvent.available_choices.forEach(
+                            (choice, index) => {
+                                const button = document.createElement("button");
+                                button.className = "choice";
+                                button.textContent = choice.choice;
+
+                                // Gắn sự kiện cho nút
+                                button.addEventListener("click", () => {
+                                    handleChoice(choice, matchedEvent);
+                                });
+
+                                outputDiv.appendChild(button);
+                            }
+                        );
+                    } else {
+                        outputDiv.innerHTML += `<p>Điều kiện của sự kiện không được thỏa mãn.</p>`;
+                    }
+                } else {
+                    outputDiv.innerHTML += `<p>Không có sự kiện nào phù hợp.</p>`;
+                }
+            };
+
+            // Hàm xử lý khi người chơi chọn một lựa chọn
+            const handleChoice = (choice, event) => {
+                const success = Math.random() <= choice.success_rate;
+                if (success) {
+                    outputDiv.innerHTML += `<p>${choice.outcome}</p>`;
+                } else {
+                    outputDiv.innerHTML += `<p>Bạn không thành công trong hành động này.</p>`;
+                }
+
+                // Xóa các nút lựa chọn sau khi xử lý
+                const buttons = document.querySelectorAll(".choice");
+                buttons.forEach((button) => button.remove());
+            };
+
+            customActionBtn.addEventListener("click", () => {
+                if (playerName == null && customActionInput.value === "") {
+                    outputDiv.innerHTML = "Vui lòng nhập tên của bạn.";
+                    return;
+                }
+
+                if (playerName == null && customActionInput.value != null) {
+                    startGame();
+                } else {
+                    if (customActionInput.value === "") {
+                        outputDiv.innerHTML =
+                            "Vui lòng nhập hành động của bạn.";
+                    } else {
+                        processInput(customActionInput.value);
+                        storyLogEl.value += `\nPLAYER ACTION: ${customActionInput.value}`;
+                    }
+                }
+            });
+
+            document.addEventListener("click", (event) => {
+                if (event.target.classList.contains("choice")) {
+                    const choiceText = event.target.innerText;
+                    const matchedEvent = events.find((event) =>
+                        event.available_choices.some(
+                            (choice) => choice.choice === choiceText
+                        )
+                    );
+                    const selectedChoice = matchedEvent.available_choices.find(
+                        (choice) => choice.choice === choiceText
+                    );
+                    const outcome =
+                        Math.random() < selectedChoice.success_rate
+                            ? selectedChoice.outcome
+                            : "Bạn đã thất bại trong lựa chọn này.";
+                    // outputDiv.innerHTML += `<p>${outcome}</p>`;
+                    storyLogEl.value += `\n${playerName} đã chọn: ${choiceText}\nKết quả: ${outcome}`;
+                }
+            });
+
+            eventContextBtn.addEventListener("click", () => {
+                modalTitle.textContent = "Bối cảnh sự kiện";
+                modalBody.innerHTML = `${JSON.stringify(events, null, 2)}`;
+                modal.style.display = "block";
+            });
+            playerInfoBtn.addEventListener("click", () => {
+                modalTitle.textContent = "Thông tin nhân vật";
+                modalBody.innerHTML = `
+        <p><strong>Tên:</strong> ${playerName}</p>
+        <p><strong>Cấp độ:</strong> ${playerAttributes.level}</p>
+        <p><strong>Máu:</strong> ${playerAttributes.health}</p>
+        <p><strong>Vàng:</strong> ${playerAttributes.gold}</p>
+    `;
+                modal.style.display = "block";
+            });
+
+            inventoryBtn.addEventListener("click", () => {
+                if (playerName != null) {
+                    modalTitle.textContent = "Hành trang";
+                    modalBody.innerHTML = `
+        <ul>
+            ${inventory.map((item) => `<li>${item}</li>`).join("")}
+        </ul>
+    `;
+                    modal.style.display = "block";
+                }
+            });
+
+            storyLogBtn.addEventListener("click", () => {
+                modalTitle.textContent = "Lịch sử";
+                modalBody.textContent = storyLogEl.value;
+                modal.style.display = "block";
+            });
+
+            closeBtn.onclick = () => {
+                modal.style.display = "none";
+            };
+
+            window.onclick = (event) => {
+                if (event.target === modal) {
+                    modal.style.display = "none";
+                }
+            };
+        </script>
     </body>
 </html>
